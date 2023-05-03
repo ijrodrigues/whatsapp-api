@@ -1,4 +1,4 @@
-const { Client, MessageMedia, LocalAuth } = require('whatsapp-web.js');
+const { Client, MessageMedia, RemoteAuth } = require('whatsapp-web.js');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const socketIO = require('socket.io');
@@ -15,6 +15,10 @@ const port = process.env.PORT || 8000;
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
+
+// Require database
+const { MongoStore } = require('wwebjs-mongo');
+const mongoose = require('mongoose');
 
 app.use(express.json());
 app.use(express.urlencoded({
@@ -38,23 +42,32 @@ app.get('/', (req, res) => {
   });
 });
 
-const client = new Client({
-  restartOnAuthFail: true,
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process', // <- this one doesn't works in Windows
-      '--disable-gpu'
-    ],
-  },
-  authStrategy: new LocalAuth()
+mongoose.connect(process.env.MONGODB_URI).then(() => {
+  const store = new MongoStore({ mongoose: mongoose });
+  const client = new Client({
+    restartOnAuthFail: true,
+    puppeteer: {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process', // <- this one doesn't works in Windows
+        '--disable-gpu'
+      ],
+    },
+    authStrategy: new RemoteAuth({
+      store: store,
+      backupSyncIntervalMs: 300000
+    })
+  });
+
+  client.initialize();
 });
+
 
 client.on('message', msg => {
   if (msg.body == '!ping') {
@@ -77,48 +90,7 @@ client.on('message', msg => {
       }
     });
   }
-
-  // NOTE!
-  // UNCOMMENT THE SCRIPT BELOW IF YOU WANT TO SAVE THE MESSAGE MEDIA FILES
-  // Downloading media
-  // if (msg.hasMedia) {
-  //   msg.downloadMedia().then(media => {
-  //     // To better understanding
-  //     // Please look at the console what data we get
-  //     console.log(media);
-
-  //     if (media) {
-  //       // The folder to store: change as you want!
-  //       // Create if not exists
-  //       const mediaPath = './downloaded-media/';
-
-  //       if (!fs.existsSync(mediaPath)) {
-  //         fs.mkdirSync(mediaPath);
-  //       }
-
-  //       // Get the file extension by mime-type
-  //       const extension = mime.extension(media.mimetype);
-        
-  //       // Filename: change as you want! 
-  //       // I will use the time for this example
-  //       // Why not use media.filename? Because the value is not certain exists
-  //       const filename = new Date().getTime();
-
-  //       const fullFilename = mediaPath + filename + '.' + extension;
-
-  //       // Save to file
-  //       try {
-  //         fs.writeFileSync(fullFilename, media.data, { encoding: 'base64' }); 
-  //         console.log('File downloaded successfully!', fullFilename);
-  //       } catch (err) {
-  //         console.log('Failed to save the file:', err);
-  //       }
-  //     }
-  //   });
-  // }
 });
-
-client.initialize();
 
 // Socket IO
 io.on('connection', function(socket) {
