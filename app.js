@@ -176,7 +176,7 @@ mongoose.connect(process.env.MONGODB_URI).then(() => {
       to = contactId.user
     }
 
-    client.sendMessage(to, message).then(response => {
+    client.sendMessage(`${to}@c.us`, message).then(response => {
       res.status(200).json({
         status: true,
         response: response
