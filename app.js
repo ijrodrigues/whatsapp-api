@@ -161,7 +161,22 @@ mongoose.connect(process.env.MONGODB_URI).then(() => {
       });
     }
 
-    client.sendMessage(number, message).then(response => {
+    let to = number
+    let contactId
+
+    if (to.startsWith('55') && to.length == 13 && to[4] == 9) {
+      contactId = await client.getNumberId(to.slice(0, 4) + to.slice(5))
+    }
+
+    if (!contactId) {
+      contactId = await client.getNumberId(to)
+    }
+
+    if (contactId) {
+      to = contactId.user
+    }
+
+    client.sendMessage(to, message).then(response => {
       res.status(200).json({
         status: true,
         response: response
